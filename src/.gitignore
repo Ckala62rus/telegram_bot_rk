@@ -4,3 +4,4 @@
 log.log
 error.log
 critical.log
+.env
