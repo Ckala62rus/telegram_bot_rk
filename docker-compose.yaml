@@ -1,0 +1,44 @@
+version: '3.8'
+services:
+  backend_telegram_bot:
+#    image: ckala62rus/fastapi_architecture_2024
+    container_name: backend_telegram_bot
+    build:
+      context: .
+      dockerfile: ./docker/fastapi/DockerFile
+#    command: bash -c "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+#    tty: true
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./src:/src
+    env_file:
+      - ./backend/.env
+
+  db_telegram_bot:
+    container_name: db_telegram_bot
+    image: postgres:14.1-alpine
+#    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_telegram_bot:/var/lib/postgresql/data
+      - ./docker/backup/postgres:/tmp/backup
+    env_file:
+      - ./backend/.env
+
+#  pgadmin_telegram_bot:
+#    image: dpage/pgadmin4:6.15
+#    container_name: pgadmin_fastapi_2024
+#    env_file:
+#      - ./backend/.env
+#    ports:
+#      - "5050:80"
+#    volumes:
+#      - ./docker/pgadmin:/var/lib/pgadmin
+#    depends_on:
+#      - db
+
+volumes:
+  pgdata_telegram_bot:
+    name: pgdata_telegram_bot
