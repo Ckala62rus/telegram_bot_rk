@@ -16,7 +16,7 @@ if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 async_engine = create_async_engine(
-    url="postgresql+psycopg://postgres:postgres@localhost:5432/alch",
+    url="postgresql+psycopg://postgres:postgres@db_telegram_bot:5432/alch",
     # url="postgresql+psycopg://pguser:000000@localhost:5432/mydb",
     echo=True,
     # pool_size=5,
