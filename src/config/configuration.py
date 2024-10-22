@@ -22,7 +22,7 @@ class Settings:
     POSTGRES_DB: str = os.getenv('POSTGRES_DB')
     POSTGRES_PORT: str = os.getenv('POSTGRES_PORT')
     POSTGRES_HOST: str = os.getenv('POSTGRES_HOST')
-    SQLALCHEMY_DATABASE_URL: str = f'postgresql+psycopg://postgres:postgres@localhost:5432/alch'
+    SQLALCHEMY_DATABASE_URL: str = f'postgresql+psycopg://postgres:postgres@{os.getenv('POSTGRES_HOST')}:5432/alch'
     SQLALCHEMY_DATABASE_URL_FOR_ALEMBIC: str = f'postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}'
 
     # BOT_TOKEN
