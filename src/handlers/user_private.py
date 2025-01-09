@@ -1,11 +1,13 @@
-import json
 import logging
-import os
 
 import httpx
 from aiogram import types, Router, F, Bot
 from aiogram.filters import CommandStart, Command
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from api.dto_api import DTORequest
+from api.urls import apiUrls
+from config.configuration import settings
 from database.orm_query_user import get_user_by_telegram_id, add_user, \
     update_phone_user
 from filters.chat_types import ChatTypeFilter
@@ -141,12 +143,28 @@ async def start_command(callback: types.CallbackQuery):
     await callback.answer(text=f"Удалить товар с идентификатором id: {id}")
 
 
-# @user_private_router.message(F.text)
-# async def start_command(message: types.Message):
-#     await message.answer(text="Это магический фильтр")
+@user_private_router.message(F.text)
+async def start_command(message: types.Message):
+    try:
+        # response = requests.get(settings.LARAVEL_API_URL + apiUrls.executeCommand, DTORequest(message).__dict__)
+
+        async with httpx.AsyncClient() as client:
+            await client.get(
+                settings.LARAVEL_API_URL + apiUrls.executeCommand,params=DTORequest(message).__dict__
+            )
+
+        # response = httpx.get(
+        #     settings.LARAVEL_API_URL + apiUrls.executeCommand,
+        #     params=DTORequest(message).__dict__
+        # )
+
+        # status_code = response.status_code
+    except Exception as e:
+        logger.critical(e)
+    await message.answer(text="Это магический фильтр")
 
 
-LARAVEL_API_URL = os.getenv('LARAVEL_API_URL')
+# LARAVEL_API_URL = os.getenv('LARAVEL_API_URL')
 
 
 # @user_private_router.message()

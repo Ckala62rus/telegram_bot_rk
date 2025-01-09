@@ -9,6 +9,7 @@ RUN apk --update add mc curl curl bash nano
 
 RUN apk --update add \
     && pip install poetry \
+    && pip install poetry-plugin-export \
     && curl -sSL https://install.python-poetry.org | python3 - \
     && pip install poetry \
     && poetry export --without-hashes -f requirements.txt --output requirements.txt \
