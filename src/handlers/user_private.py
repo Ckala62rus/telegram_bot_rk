@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime, timedelta
+from time import strptime, strftime
 
 import httpx
 from aiogram import types, Router, F, Bot
@@ -151,21 +153,65 @@ class LookingForParty(StatesGroup):
     year = State()
     more_information = State()
 
+    texts = {
+        'LookingForParty:part_number': "Введите номер партии заново",
+        'LookingForParty:year': "Выбирите год заново",
+        'LookingForParty:more_information': "Выбирете дополнительную информацию заново",
+    }
+
 
 @user_private_router.message(StateFilter(None), Command('looking_for'))
-async def about_me_command(message: types.Message, state: FSMContext):
-
+async def looking_for_party(message: types.Message, state: FSMContext):
     await message.answer(
-        text="Поиск партии",
+        text="Введите номер партии для поиска",
         reply_markup=get_keyboard("отмена")
     )
-
     await state.set_state(LookingForParty.part_number)
+
+
+@user_private_router.message(LookingForParty.part_number, F.text)
+async def set_year_for_find_party(message: types.Message, state: FSMContext):
+    current_date = datetime.now()
+    prev_year = current_date - timedelta(days=1 * 365)
+
+    inline_years = [
+        prev_year.strftime('%y'),
+        current_date.strftime('%y'),
+        "отмена",
+        "шаг назад"
+    ]
+
+    await message.answer(
+        text="Выбирете год",
+        reply_markup=get_keyboard(*inline_years)
+    )
+    await state.set_state(LookingForParty.year)
+
+
+@user_private_router.message(StateFilter('*'), Command("шаг назад"))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == "шаг назад")
+async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
+    current_state = await state.get_state()
+    state.previous_state = current_state
+    print(current_state)
+    if current_state is None:
+        return
+    if current_state == LookingForParty.part_number:
+        return
+    if current_state == LookingForParty.year:
+        await message.answer(
+            text=LookingForParty.texts['LookingForParty:part_number'],
+            reply_markup=get_keyboard("отмена")
+        )
+        await state.set_state(LookingForParty.part_number)
+    if current_state == LookingForParty.more_information:
+        await state.set_state(LookingForParty.year)
+    return
 
 
 @user_private_router.message(StateFilter('*'), Command("отмена"))
 @user_private_router.message(StateFilter('*'), F.text.casefold() == "отмена")
-async def cancel_handler(message: types.Message, state: FSMContext) -> None:
+async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state is None:
         return
@@ -176,25 +222,25 @@ async def cancel_handler(message: types.Message, state: FSMContext) -> None:
     )
 
 
-@user_private_router.message(F.text)
-async def start_command(message: types.Message):
-    try:
-        # response = requests.get(settings.LARAVEL_API_URL + apiUrls.executeCommand, DTORequest(message).__dict__)
-
-        async with httpx.AsyncClient() as client:
-            await client.get(
-                settings.LARAVEL_API_URL + apiUrls.executeCommand, params=DTORequest(message).__dict__
-            )
-
-        # response = httpx.get(
-        #     settings.LARAVEL_API_URL + apiUrls.executeCommand,
-        #     params=DTORequest(message).__dict__
-        # )
-
-        # status_code = response.status_code
-    except Exception as e:
-        logger.critical(e)
-    await message.answer(text="Это магический фильтр")
+# @user_private_router.message(F.text)
+# async def start_command(message: types.Message):
+#     try:
+#         # response = requests.get(settings.LARAVEL_API_URL + apiUrls.executeCommand, DTORequest(message).__dict__)
+#
+#         async with httpx.AsyncClient() as client:
+#             await client.get(
+#                 settings.LARAVEL_API_URL + apiUrls.executeCommand, params=DTORequest(message).__dict__
+#             )
+#
+#         # response = httpx.get(
+#         #     settings.LARAVEL_API_URL + apiUrls.executeCommand,
+#         #     params=DTORequest(message).__dict__
+#         # )
+#
+#         # status_code = response.status_code
+#     except Exception as e:
+#         logger.critical(e)
+#     await message.answer(text="Это магический фильтр")
 
 # LARAVEL_API_URL = os.getenv('LARAVEL_API_URL')
 
