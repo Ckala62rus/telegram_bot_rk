@@ -2,7 +2,9 @@ import logging
 
 import httpx
 from aiogram import types, Router, F, Bot
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dto_api import DTORequest
@@ -11,8 +13,10 @@ from config.configuration import settings
 from database.orm_query_user import get_user_by_telegram_id, add_user, \
     update_phone_user
 from filters.chat_types import ChatTypeFilter
+from handlers.admin_private import ADMIN_KB
 from kbds import reply
 from kbds.inline import get_callback_btns
+from kbds.reply import get_keyboard
 
 user_private_router = Router()
 user_private_router.message.filter(ChatTypeFilter(['private']))
@@ -78,7 +82,6 @@ async def phone_command(message: types.Message):
 
 @user_private_router.message(F.contact)
 async def contact_command(message: types.Message, db_session: AsyncSession):
-
     await update_phone_user(
         db_session,
         message.from_user.id,
@@ -143,6 +146,36 @@ async def start_command(callback: types.CallbackQuery):
     await callback.answer(text=f"Удалить товар с идентификатором id: {id}")
 
 
+class LookingForParty(StatesGroup):
+    part_number = State()
+    year = State()
+    more_information = State()
+
+
+@user_private_router.message(StateFilter(None), Command('looking_for'))
+async def about_me_command(message: types.Message, state: FSMContext):
+
+    await message.answer(
+        text="Поиск партии",
+        reply_markup=get_keyboard("отмена")
+    )
+
+    await state.set_state(LookingForParty.part_number)
+
+
+@user_private_router.message(StateFilter('*'), Command("отмена"))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == "отмена")
+async def cancel_handler(message: types.Message, state: FSMContext) -> None:
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+    await state.clear()
+    await message.answer(
+        "Действия отменены",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+
+
 @user_private_router.message(F.text)
 async def start_command(message: types.Message):
     try:
@@ -150,7 +183,7 @@ async def start_command(message: types.Message):
 
         async with httpx.AsyncClient() as client:
             await client.get(
-                settings.LARAVEL_API_URL + apiUrls.executeCommand,params=DTORequest(message).__dict__
+                settings.LARAVEL_API_URL + apiUrls.executeCommand, params=DTORequest(message).__dict__
             )
 
         # response = httpx.get(
@@ -162,7 +195,6 @@ async def start_command(message: types.Message):
     except Exception as e:
         logger.critical(e)
     await message.answer(text="Это магический фильтр")
-
 
 # LARAVEL_API_URL = os.getenv('LARAVEL_API_URL')
 
