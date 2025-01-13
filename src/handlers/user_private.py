@@ -160,47 +160,6 @@ class LookingForParty(StatesGroup):
     }
 
 
-@user_private_router.message(StateFilter(None), Command('looking_for'))
-async def set_part_number(message: types.Message, state: FSMContext):
-    await message.answer(
-        text="Введите номер партии для поиска",
-        reply_markup=get_keyboard("отмена")
-    )
-    await state.set_state(LookingForParty.part_number)
-
-
-@user_private_router.message(LookingForParty.part_number, F.text)
-async def set_year_for_find_party(message: types.Message, state: FSMContext):
-    current_date = datetime.now()
-    prev_year = current_date - timedelta(days=1 * 365)
-
-    inline_years = [
-        prev_year.strftime('%y'),
-        current_date.strftime('%y'),
-        "отмена",
-        "шаг назад"
-    ]
-
-    await message.answer(
-        text="Выбирете год",
-        reply_markup=get_keyboard(*inline_years)
-    )
-    await state.set_state(LookingForParty.year)
-
-
-@user_private_router.message(LookingForParty.year, F.text)
-async def set_year_for_find_party(message: types.Message, state: FSMContext):
-    await message.answer(
-        text="Нужна дополнительная информация к партии (запрос займет немного больше времени)?",
-        reply_markup=get_keyboard(*[
-            "искать партию",
-            "отмена",
-            "шаг назад"
-        ], sizes=(1,2))
-    )
-    await state.set_state(LookingForParty.more_information)
-
-
 @user_private_router.message(StateFilter('*'), Command("шаг назад"))
 @user_private_router.message(StateFilter('*'), F.text.casefold() == "шаг назад")
 async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
@@ -212,10 +171,11 @@ async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
     if current_state == LookingForParty.year:
         await message.answer(
             text=LookingForParty.texts['LookingForParty:part_number'],
-            reply_markup=get_keyboard("отмена", "шаг назад")
+            reply_markup=get_keyboard("отмена")
         )
         await state.set_state(LookingForParty.part_number)
 
+    # if year was entered
     if current_state == LookingForParty.more_information:
         await message.answer(
             text=LookingForParty.texts['LookingForParty:year'],
@@ -243,6 +203,77 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
         "Действия отменены",
         reply_markup=types.ReplyKeyboardRemove()
     )
+
+
+@user_private_router.message(StateFilter(None), Command('looking_for'))
+async def set_part_number(message: types.Message, state: FSMContext):
+    await message.answer(
+        text="Введите номер партии для поиска",
+        reply_markup=get_keyboard("отмена")
+    )
+    await state.set_state(LookingForParty.part_number)
+
+
+@user_private_router.message(LookingForParty.part_number, F.text)
+async def set_year_for_find_party(message: types.Message, state: FSMContext):
+    await state.update_data(part_number=message.text)
+
+    current_date = datetime.now()
+    prev_year = current_date - timedelta(days=1 * 365)
+
+    inline_years = [
+        prev_year.strftime('%y'),
+        current_date.strftime('%y'),
+        "отмена",
+        "шаг назад"
+    ]
+
+    await message.answer(
+        text="Выберете год",
+        reply_markup=get_keyboard(*inline_years)
+    )
+    await state.set_state(LookingForParty.year)
+
+
+@user_private_router.message(LookingForParty.year, F.text)
+async def send_request_find_party(message: types.Message, state: FSMContext):
+    await state.update_data(year=message.text)
+
+    await message.answer(
+        text="Нужна дополнительная информация к партии (запрос займет немного больше времени)?",
+        reply_markup=get_keyboard(*[
+            "искать партию",
+            "отмена",
+            "шаг назад"
+        ], sizes=(1, 2))
+    )
+    await state.set_state(LookingForParty.more_information)
+
+
+@user_private_router.message(StateFilter('*'), Command("искать партию"))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == "искать партию")
+async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
+    current_state: dict | LookingForParty = await state.get_data()
+
+    code = f"{current_state["year"]}%{current_state["part_number"]}"
+
+    await message.answer(
+        "Ищу партию",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.get(
+                settings.LARAVEL_API_URL + apiUrls.executeCommand,
+                params=DTORequest(
+                    message=message,
+                    part_number=code
+                ).__dict__
+            )
+    except Exception as e:
+        logger.exception(e)
+
+    await state.clear()
 
 
 # @user_private_router.message(F.text)
