@@ -161,7 +161,7 @@ class LookingForParty(StatesGroup):
 
 
 @user_private_router.message(StateFilter(None), Command('looking_for'))
-async def looking_for_party(message: types.Message, state: FSMContext):
+async def set_part_number(message: types.Message, state: FSMContext):
     await message.answer(
         text="Введите номер партии для поиска",
         reply_markup=get_keyboard("отмена")
@@ -188,24 +188,47 @@ async def set_year_for_find_party(message: types.Message, state: FSMContext):
     await state.set_state(LookingForParty.year)
 
 
+@user_private_router.message(LookingForParty.year, F.text)
+async def set_year_for_find_party(message: types.Message, state: FSMContext):
+    await message.answer(
+        text="Нужна дополнительная информация к партии (запрос займет немного больше времени)?",
+        reply_markup=get_keyboard(*[
+            "искать партию",
+            "отмена",
+            "шаг назад"
+        ], sizes=(1,2))
+    )
+    await state.set_state(LookingForParty.more_information)
+
+
 @user_private_router.message(StateFilter('*'), Command("шаг назад"))
 @user_private_router.message(StateFilter('*'), F.text.casefold() == "шаг назад")
 async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
     current_state = await state.get_state()
-    state.previous_state = current_state
-    print(current_state)
+
     if current_state is None:
         return
-    if current_state == LookingForParty.part_number:
-        return
+
     if current_state == LookingForParty.year:
         await message.answer(
             text=LookingForParty.texts['LookingForParty:part_number'],
-            reply_markup=get_keyboard("отмена")
+            reply_markup=get_keyboard("отмена", "шаг назад")
         )
         await state.set_state(LookingForParty.part_number)
+
     if current_state == LookingForParty.more_information:
+        await message.answer(
+            text=LookingForParty.texts['LookingForParty:year'],
+            reply_markup=get_keyboard(
+                "24",
+                "25",
+                "отмена",
+                "шаг назад"
+            )
+        )
+
         await state.set_state(LookingForParty.year)
+
     return
 
 
