@@ -243,6 +243,8 @@ async def send_request_find_party(message: types.Message, state: FSMContext):
         text="Нужна дополнительная информация к партии (запрос займет немного больше времени)?",
         reply_markup=get_keyboard(*[
             "искать партию",
+            "искать партию с цветом",
+            "искать партию с ФИО",
             "отмена",
             "шаг назад"
         ], sizes=(1, 2))
@@ -257,6 +259,45 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
 
     code = f"{current_state["year"]}%{current_state["part_number"]}"
 
+    await find_party(message, state, code)
+
+    # await message.answer(
+    #     "Ищу партию",
+    #     reply_markup=types.ReplyKeyboardRemove()
+    # )
+    # try:
+    #     async with httpx.AsyncClient() as client:
+    #         await client.get(
+    #             settings.LARAVEL_API_URL + apiUrls.executeCommand,
+    #             params=DTORequest(
+    #                 message=message,
+    #                 part_number=code
+    #             ).__dict__,
+    #             timeout=10.0
+    #         )
+    # except Exception as e:
+    #     logger.exception(e)
+    #
+    # await state.clear()
+
+
+@user_private_router.message(StateFilter('*'), Command("искать партию с цветом"))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == "искать партию с цветом")
+async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
+    current_state: dict | LookingForParty = await state.get_data()
+    code = f"{current_state["year"]}%{current_state["part_number"]}*"
+    await find_party(message, state, code)
+
+
+@user_private_router.message(StateFilter('*'), Command("искать партию с ФИО"))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == "искать партию с ФИО")
+async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
+    current_state: dict | LookingForParty = await state.get_data()
+    code = f"{current_state["year"]}%{current_state["part_number"]}@"
+    await find_party(message, state, code)
+
+
+async def find_party(message: types.Message, state: FSMContext, code: str) -> None:
     await message.answer(
         "Ищу партию",
         reply_markup=types.ReplyKeyboardRemove()
@@ -268,7 +309,8 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
                 params=DTORequest(
                     message=message,
                     part_number=code
-                ).__dict__
+                ).__dict__,
+                timeout=10.0
             )
     except Exception as e:
         logger.exception(e)
