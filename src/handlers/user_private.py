@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from enum import StrEnum, Enum
 from time import strptime, strftime
 
 import httpx
@@ -24,6 +25,14 @@ user_private_router = Router()
 user_private_router.message.filter(ChatTypeFilter(['private']))
 
 logger = logging.getLogger(__name__)
+
+
+class FindPartyTypes(Enum):
+    SIMPLE = "искать партию",
+    WITH_COLOR = "искать партию с цветом",
+    WITH_FIO = "искать с фио",
+    CANCEL = "отмена",
+    STEP_BACK = "шаг назад"
 
 
 @user_private_router.message(CommandStart())
@@ -160,8 +169,8 @@ class LookingForParty(StatesGroup):
     }
 
 
-@user_private_router.message(StateFilter('*'), Command("шаг назад"))
-@user_private_router.message(StateFilter('*'), F.text.casefold() == "шаг назад")
+@user_private_router.message(StateFilter('*'), Command(str(FindPartyTypes.STEP_BACK.value)))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == str(FindPartyTypes.STEP_BACK.value))
 async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
     current_state = await state.get_state()
 
@@ -229,7 +238,7 @@ async def set_year_for_find_party(message: types.Message, state: FSMContext):
     ]
 
     await message.answer(
-        text="Выберете год",
+        text="Выберете год или введите две цифры нужного",
         reply_markup=get_keyboard(*inline_years)
     )
     await state.set_state(LookingForParty.year)
@@ -244,7 +253,7 @@ async def send_request_find_party(message: types.Message, state: FSMContext):
         reply_markup=get_keyboard(*[
             "искать партию",
             "искать партию с цветом",
-            "искать партию с ФИО",
+            "искать с фио",
             "отмена",
             "шаг назад"
         ], sizes=(1, 2))
@@ -252,8 +261,8 @@ async def send_request_find_party(message: types.Message, state: FSMContext):
     await state.set_state(LookingForParty.more_information)
 
 
-@user_private_router.message(StateFilter('*'), Command("искать партию"))
-@user_private_router.message(StateFilter('*'), F.text.casefold() == "искать партию")
+@user_private_router.message(LookingForParty.more_information, Command("искать партию"))
+@user_private_router.message(LookingForParty.more_information, F.text.casefold() == "искать партию")
 async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
     current_state: dict | LookingForParty = await state.get_data()
 
@@ -281,17 +290,17 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
     # await state.clear()
 
 
-@user_private_router.message(StateFilter('*'), Command("искать партию с цветом"))
-@user_private_router.message(StateFilter('*'), F.text.casefold() == "искать партию с цветом")
-async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
+# @user_private_router.message(LookingForParty.more_information, Command(str(FindPartyTypes.WITH_COLOR.value)))
+@user_private_router.message(LookingForParty.more_information, F.text.casefold() == "искать партию с цветом")
+async def find_party_with_color(message: types.Message, state: FSMContext) -> None:
     current_state: dict | LookingForParty = await state.get_data()
     code = f"{current_state["year"]}%{current_state["part_number"]}*"
     await find_party(message, state, code)
 
 
-@user_private_router.message(StateFilter('*'), Command("искать партию с ФИО"))
-@user_private_router.message(StateFilter('*'), F.text.casefold() == "искать партию с ФИО")
-async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
+# @user_private_router.message(LookingForParty.more_information, Command(str(FindPartyTypes.WITH_FIO.value)))
+@user_private_router.message(LookingForParty.more_information, F.text.casefold() == "искать с фио")
+async def find_party_with_fio(message: types.Message, state: FSMContext) -> None:
     current_state: dict | LookingForParty = await state.get_data()
     code = f"{current_state["year"]}%{current_state["part_number"]}@"
     await find_party(message, state, code)
@@ -299,7 +308,7 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
 
 async def find_party(message: types.Message, state: FSMContext, code: str) -> None:
     await message.answer(
-        "Ищу партию",
+        "Поиск партии...",
         reply_markup=types.ReplyKeyboardRemove()
     )
     try:
