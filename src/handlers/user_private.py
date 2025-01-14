@@ -1,10 +1,9 @@
 import logging
 from datetime import datetime, timedelta
-from enum import StrEnum, Enum
-from time import strptime, strftime
+from enum import StrEnum
 
 import httpx
-from aiogram import types, Router, F, Bot
+from aiogram import types, Router, F
 from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -16,7 +15,6 @@ from config.configuration import settings
 from database.orm_query_user import get_user_by_telegram_id, add_user, \
     update_phone_user
 from filters.chat_types import ChatTypeFilter
-from handlers.admin_private import ADMIN_KB
 from kbds import reply
 from kbds.inline import get_callback_btns
 from kbds.reply import get_keyboard
@@ -27,7 +25,7 @@ user_private_router.message.filter(ChatTypeFilter(['private']))
 logger = logging.getLogger(__name__)
 
 
-class FindPartyTypes(Enum):
+class FindPartyTypes(StrEnum):
     SIMPLE = "искать партию",
     WITH_COLOR = "искать партию с цветом",
     WITH_FIO = "искать с фио",
@@ -37,7 +35,6 @@ class FindPartyTypes(Enum):
 
 @user_private_router.message(CommandStart())
 async def start_command(message: types.Message, db_session: AsyncSession):
-    # await message.answer(text="This command '/start'")
     user = await get_user_by_telegram_id(db_session, message.from_user.id)
 
     if user is None:
@@ -62,31 +59,10 @@ async def menu_command(message: types.Message, db_session: AsyncSession):
     await message.answer(text="Вот меню")
 
 
-@user_private_router.message(Command('about'))
-async def about_command(message: types.Message):
-    await message.answer(text="О нас")
-
-
-@user_private_router.message(Command('payment'))
-async def payment_command(message: types.Message):
-    await message.answer(text="Оплата")
-
-
-@user_private_router.message(Command('shipping'))
-async def shipping_command(message: types.Message):
-    await message.answer(text="Доставка")
-
-
-# "^([0-9]{2,4})@([a-zA-Z]{0,5})$" => 1234@test
-@user_private_router.message(F.text.regexp("^([0-9]{2,4})@([a-zA-Z]{0,5})$"))
-async def some_command(message: types.Message):
-    await message.answer(text=message.text)
-
-
 @user_private_router.message(Command('phone'))
 async def phone_command(message: types.Message):
     await message.answer(
-        text="Отправьте свой номер телефона",
+        text="Отправьте свой номер телефона для регистрации",
         reply_markup=reply.phone_kb
     )
 
@@ -132,31 +108,6 @@ async def about_me_command(message: types.Message, db_session: AsyncSession):
     )
 
 
-@user_private_router.message(Command("products"))
-async def start_command(message: types.Message):
-    await message.answer(
-        text="Какой то продукт с кнопками",
-        reply_markup=get_callback_btns(
-            btns={
-                "Характеристики": "product_info_1",
-                "Удалить товар": "product_delete_1",
-            }
-        )
-    )
-
-
-@user_private_router.callback_query(F.data.startswith("product_info_"))
-async def start_command(callback: types.CallbackQuery):
-    id = callback.data.split("product_info_")[-1]
-    await callback.answer(text=f"Информация о товаре с идентификатором id: {id}")
-
-
-@user_private_router.callback_query(F.data.startswith("product_delete_1"))
-async def start_command(callback: types.CallbackQuery):
-    id = callback.data.split("product_delete_")[-1]
-    await callback.answer(text=f"Удалить товар с идентификатором id: {id}")
-
-
 class LookingForParty(StatesGroup):
     part_number = State()
     year = State()
@@ -169,8 +120,8 @@ class LookingForParty(StatesGroup):
     }
 
 
-@user_private_router.message(StateFilter('*'), Command(str(FindPartyTypes.STEP_BACK.value)))
-@user_private_router.message(StateFilter('*'), F.text.casefold() == str(FindPartyTypes.STEP_BACK.value))
+@user_private_router.message(StateFilter('*'), Command(str(FindPartyTypes.STEP_BACK)))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == str(FindPartyTypes.STEP_BACK))
 async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
     current_state = await state.get_state()
 
@@ -180,7 +131,7 @@ async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
     if current_state == LookingForParty.year:
         await message.answer(
             text=LookingForParty.texts['LookingForParty:part_number'],
-            reply_markup=get_keyboard("отмена")
+            reply_markup=get_keyboard(str(FindPartyTypes.CANCEL))
         )
         await state.set_state(LookingForParty.part_number)
 
@@ -191,8 +142,8 @@ async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
             reply_markup=get_keyboard(
                 "24",
                 "25",
-                "отмена",
-                "шаг назад"
+                str(FindPartyTypes.CANCEL),
+                str(FindPartyTypes.STEP_BACK)
             )
         )
 
@@ -201,8 +152,7 @@ async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
     return
 
 
-@user_private_router.message(StateFilter('*'), Command("отмена"))
-@user_private_router.message(StateFilter('*'), F.text.casefold() == "отмена")
+@user_private_router.message(StateFilter('*'), F.text.casefold() == str(FindPartyTypes.CANCEL))
 async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
     current_state = await state.get_state()
     if current_state is None:
@@ -218,7 +168,7 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
 async def set_part_number(message: types.Message, state: FSMContext):
     await message.answer(
         text="Введите номер партии для поиска",
-        reply_markup=get_keyboard("отмена")
+        reply_markup=get_keyboard(str(FindPartyTypes.CANCEL))
     )
     await state.set_state(LookingForParty.part_number)
 
@@ -233,8 +183,8 @@ async def set_year_for_find_party(message: types.Message, state: FSMContext):
     inline_years = [
         prev_year.strftime('%y'),
         current_date.strftime('%y'),
-        "отмена",
-        "шаг назад"
+        str(FindPartyTypes.CANCEL),
+        str(FindPartyTypes.STEP_BACK)
     ]
 
     await message.answer(
@@ -247,59 +197,34 @@ async def set_year_for_find_party(message: types.Message, state: FSMContext):
 @user_private_router.message(LookingForParty.year, F.text)
 async def send_request_find_party(message: types.Message, state: FSMContext):
     await state.update_data(year=message.text)
-
     await message.answer(
         text="Нужна дополнительная информация к партии (запрос займет немного больше времени)?",
         reply_markup=get_keyboard(*[
-            "искать партию",
-            "искать партию с цветом",
-            "искать с фио",
-            "отмена",
-            "шаг назад"
+            str(FindPartyTypes.SIMPLE),
+            str(FindPartyTypes.WITH_COLOR),
+            str(FindPartyTypes.WITH_FIO),
+            str(FindPartyTypes.CANCEL),
+            str(FindPartyTypes.STEP_BACK)
         ], sizes=(1, 2))
     )
     await state.set_state(LookingForParty.more_information)
 
 
-@user_private_router.message(LookingForParty.more_information, Command("искать партию"))
-@user_private_router.message(LookingForParty.more_information, F.text.casefold() == "искать партию")
+@user_private_router.message(LookingForParty.more_information, F.text.casefold() == str(FindPartyTypes.SIMPLE))
 async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
     current_state: dict | LookingForParty = await state.get_data()
-
     code = f"{current_state["year"]}%{current_state["part_number"]}"
-
     await find_party(message, state, code)
 
-    # await message.answer(
-    #     "Ищу партию",
-    #     reply_markup=types.ReplyKeyboardRemove()
-    # )
-    # try:
-    #     async with httpx.AsyncClient() as client:
-    #         await client.get(
-    #             settings.LARAVEL_API_URL + apiUrls.executeCommand,
-    #             params=DTORequest(
-    #                 message=message,
-    #                 part_number=code
-    #             ).__dict__,
-    #             timeout=10.0
-    #         )
-    # except Exception as e:
-    #     logger.exception(e)
-    #
-    # await state.clear()
 
-
-# @user_private_router.message(LookingForParty.more_information, Command(str(FindPartyTypes.WITH_COLOR.value)))
-@user_private_router.message(LookingForParty.more_information, F.text.casefold() == "искать партию с цветом")
+@user_private_router.message(LookingForParty.more_information, F.text.casefold() == str(FindPartyTypes.WITH_COLOR))
 async def find_party_with_color(message: types.Message, state: FSMContext) -> None:
     current_state: dict | LookingForParty = await state.get_data()
     code = f"{current_state["year"]}%{current_state["part_number"]}*"
     await find_party(message, state, code)
 
 
-# @user_private_router.message(LookingForParty.more_information, Command(str(FindPartyTypes.WITH_FIO.value)))
-@user_private_router.message(LookingForParty.more_information, F.text.casefold() == "искать с фио")
+@user_private_router.message(LookingForParty.more_information, F.text.casefold() == str(FindPartyTypes.WITH_FIO))
 async def find_party_with_fio(message: types.Message, state: FSMContext) -> None:
     current_state: dict | LookingForParty = await state.get_data()
     code = f"{current_state["year"]}%{current_state["part_number"]}@"
@@ -319,72 +244,9 @@ async def find_party(message: types.Message, state: FSMContext, code: str) -> No
                     message=message,
                     part_number=code
                 ).__dict__,
-                timeout=10.0
+                timeout=30.0
             )
     except Exception as e:
         logger.exception(e)
 
     await state.clear()
-
-
-# @user_private_router.message(F.text)
-# async def start_command(message: types.Message):
-#     try:
-#         # response = requests.get(settings.LARAVEL_API_URL + apiUrls.executeCommand, DTORequest(message).__dict__)
-#
-#         async with httpx.AsyncClient() as client:
-#             await client.get(
-#                 settings.LARAVEL_API_URL + apiUrls.executeCommand, params=DTORequest(message).__dict__
-#             )
-#
-#         # response = httpx.get(
-#         #     settings.LARAVEL_API_URL + apiUrls.executeCommand,
-#         #     params=DTORequest(message).__dict__
-#         # )
-#
-#         # status_code = response.status_code
-#     except Exception as e:
-#         logger.critical(e)
-#     await message.answer(text="Это магический фильтр")
-
-# LARAVEL_API_URL = os.getenv('LARAVEL_API_URL')
-
-
-# @user_private_router.message()
-# async def echo(message: types.Message, bot: Bot):
-#     if message.photo is not None:
-#         if message.content_type == 'photo':
-#             file_id = message.photo[2].file_id
-#             photo_file = await bot.get_file(file_id)
-#             # await send_message_to_service(LARAVEL_API_URL + "upload-photo",
-#             #     payload={
-#             #       "file": photo_file.file_path,
-#             #     }
-#             # )
-#             async with httpx.AsyncClient() as client:
-#                 response = await client.post("http://127.0.0.1:85/api/upload-photo", data={
-#                   "file": photo_file.file_path,
-#                 })
-#         await message.answer("Фото загружено")
-#         return
-#     if message.document is not None:
-#         if message.content_type == 'document':
-#             await send_message_to_service("http://127.0.0.1:85/api/upload-document",
-#                 payload={
-#                     "file_id": message.document.file_id,
-#                     "mime_type": message.document.mime_type,
-#                 }
-#             )
-#         await message.answer("Документ загружен")
-#         return
-#     if message.contact is not None:
-#         await message.answer(message.contact.phone_number)
-#     else:
-#         await message.answer(message.text)
-#
-#
-# async def send_message_to_service(url: str, payload: dict):
-#     async with httpx.AsyncClient() as client:
-#         response = await client.post(url, data=payload)
-#
-#         return True

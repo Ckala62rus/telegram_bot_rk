@@ -462,3 +462,8 @@ async def confirm_admin_create(
     else:
         await message.answer("Введите 'да' для подтверждения " +
                              "Для отмены всех действий введите команду /clear")
+
+
+# @admin_router.message(F.text)
+# async def start_command(message: types.Message):
+#     await message.answer(text="Это магический фильтр из админской ветки")
