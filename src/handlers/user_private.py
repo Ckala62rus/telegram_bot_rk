@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dto_api import DTORequest
 from api.urls import apiUrls
 from config.configuration import settings
+from database.models.models import User
 from database.orm_query_user import get_user_by_telegram_id, add_user, \
     update_phone_user
 from filters.chat_types import ChatTypeFilter
@@ -45,7 +46,11 @@ class FindPartyText(StrEnum):
 
 @user_private_router.message(CommandStart())
 async def start_command(message: types.Message, db_session: AsyncSession):
-    user = await get_user_by_telegram_id(db_session, message.from_user.id)
+    user: User = await get_user_by_telegram_id(db_session, message.from_user.id)
+
+    if user != "" and len(user.phone_number) > 0:
+        await message.answer(text="Вы уже есть в системе")
+        return
 
     if user is None:
         await add_user(db_session, {
@@ -54,19 +59,11 @@ async def start_command(message: types.Message, db_session: AsyncSession):
         })
 
     await message.answer(
-        text="This command '/start'",
-        reply_markup=reply.start_kb
+        text="Для того, что бы пользоваться ботом, "
+             "вам необходимо поделиться номером телефона и "
+             "сообщить администратору, для добавления прав",
+        reply_markup=reply.phone_kb
     )
-
-
-@user_private_router.message(Command('menu'))
-async def menu_command(message: types.Message, db_session: AsyncSession):
-    logger.debug(f"command 'menu' : from {message.from_user.id} | {message.from_user.username} | {message.text}")
-    try:
-        print(2 / 0)
-    except Exception as e:
-        logger.exception(e)
-    await message.answer(text="Вот меню")
 
 
 @user_private_router.message(Command('phone'))
@@ -86,10 +83,9 @@ async def contact_command(message: types.Message, db_session: AsyncSession):
     )
 
     await message.answer(
-        text=f"Вот твой номер: {message.contact.phone_number}",
+        text=f"Осталось добавить права",
         reply_markup=types.ReplyKeyboardRemove()
     )
-    await message.answer(str(message.contact))
 
 
 @user_private_router.message(F.location)
