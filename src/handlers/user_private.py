@@ -16,7 +16,6 @@ from database.orm_query_user import get_user_by_telegram_id, add_user, \
     update_phone_user
 from filters.chat_types import ChatTypeFilter
 from kbds import reply
-from kbds.inline import get_callback_btns
 from kbds.reply import get_keyboard
 
 user_private_router = Router()
@@ -31,6 +30,17 @@ class FindPartyTypes(StrEnum):
     WITH_FIO = "искать с фио",
     CANCEL = "отмена",
     STEP_BACK = "шаг назад"
+
+
+class FindPartyText(StrEnum):
+    CHOOSE_YEAR = "Выберете год или введите две цифры нужного"
+    SEND_YOUR_PHONE = "Отправьте свой номер телефона для регистрации"
+    ACTIONS_CANCELED = "Действия отменены"
+    PLEASE_ENTER_PART_NUMBER = "Введите номер партии для поиска"
+    ADDITION_INFORMATION = ("Если нужна дополнительная информация о партии, "
+                            "выберете соответствующую кнопку "
+                            "(запрос займет немного больше времени)?")
+    LOOKING_PARTY = "Поиск партии..."
 
 
 @user_private_router.message(CommandStart())
@@ -62,7 +72,7 @@ async def menu_command(message: types.Message, db_session: AsyncSession):
 @user_private_router.message(Command('phone'))
 async def phone_command(message: types.Message):
     await message.answer(
-        text="Отправьте свой номер телефона для регистрации",
+        text=str(FindPartyText.SEND_YOUR_PHONE),
         reply_markup=reply.phone_kb
     )
 
@@ -137,11 +147,14 @@ async def back_to_find_party(message: types.Message, state: FSMContext) -> None:
 
     # if year was entered
     if current_state == LookingForParty.more_information:
+        current_date = datetime.now()
+        prev_year = current_date - timedelta(days=1 * 365)
+
         await message.answer(
             text=LookingForParty.texts['LookingForParty:year'],
             reply_markup=get_keyboard(
-                "24",
-                "25",
+                prev_year.strftime('%y'),
+                current_date.strftime('%y'),
                 str(FindPartyTypes.CANCEL),
                 str(FindPartyTypes.STEP_BACK)
             )
@@ -159,7 +172,7 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
         return
     await state.clear()
     await message.answer(
-        "Действия отменены",
+        str(FindPartyText.ACTIONS_CANCELED),
         reply_markup=types.ReplyKeyboardRemove()
     )
 
@@ -167,7 +180,7 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
 @user_private_router.message(StateFilter(None), Command('looking_for'))
 async def set_part_number(message: types.Message, state: FSMContext):
     await message.answer(
-        text="Введите номер партии для поиска",
+        text=str(FindPartyText.PLEASE_ENTER_PART_NUMBER),
         reply_markup=get_keyboard(str(FindPartyTypes.CANCEL))
     )
     await state.set_state(LookingForParty.part_number)
@@ -188,7 +201,7 @@ async def set_year_for_find_party(message: types.Message, state: FSMContext):
     ]
 
     await message.answer(
-        text="Выберете год или введите две цифры нужного",
+        text=str(FindPartyText.CHOOSE_YEAR),
         reply_markup=get_keyboard(*inline_years)
     )
     await state.set_state(LookingForParty.year)
@@ -198,7 +211,7 @@ async def set_year_for_find_party(message: types.Message, state: FSMContext):
 async def send_request_find_party(message: types.Message, state: FSMContext):
     await state.update_data(year=message.text)
     await message.answer(
-        text="Нужна дополнительная информация к партии (запрос займет немного больше времени)?",
+        text=str(FindPartyText.ADDITION_INFORMATION),
         reply_markup=get_keyboard(*[
             str(FindPartyTypes.SIMPLE),
             str(FindPartyTypes.WITH_COLOR),
@@ -233,7 +246,7 @@ async def find_party_with_fio(message: types.Message, state: FSMContext) -> None
 
 async def find_party(message: types.Message, state: FSMContext, code: str) -> None:
     await message.answer(
-        "Поиск партии...",
+        str(FindPartyText.LOOKING_PARTY),
         reply_markup=types.ReplyKeyboardRemove()
     )
     try:
