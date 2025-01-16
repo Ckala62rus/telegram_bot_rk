@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dto_api import DTORequest
 from api.urls import apiUrls
+from bot_enums.admin_enums import AdminEnums
 from bot_enums.user_enums import FindPartyText, FindPartyTypes
 from config.configuration import settings
 from database.models.models import User
@@ -155,6 +156,7 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
 
 
 @user_private_router.message(StateFilter(None), Command('looking_for'))
+@user_private_router.message(StateFilter('*'), F.text.casefold() == str(FindPartyTypes.SIMPLE))
 async def set_part_number(message: types.Message, state: FSMContext):
     await message.answer(
         text=str(FindPartyText.PLEASE_ENTER_PART_NUMBER),
@@ -240,3 +242,11 @@ async def find_party(message: types.Message, state: FSMContext, code: str) -> No
         logger.exception(e)
 
     await state.clear()
+
+
+@user_private_router.message(Command("menu"))
+async def admin_panel(message: types.Message):
+    await message.answer("Меню", reply_markup=get_keyboard(*[
+        str(AdminEnums.ADMIN_MENU),
+        str(FindPartyTypes.SIMPLE)
+    ]))
