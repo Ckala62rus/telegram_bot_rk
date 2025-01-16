@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timedelta
-from enum import StrEnum
 
 import httpx
 from aiogram import types, Router, F
@@ -11,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dto_api import DTORequest
 from api.urls import apiUrls
+from bot_enums.user_enums import FindPartyText, FindPartyTypes
 from config.configuration import settings
 from database.models.models import User
 from database.orm_query_user import get_user_by_telegram_id, add_user, \
@@ -23,25 +23,6 @@ user_private_router = Router()
 user_private_router.message.filter(ChatTypeFilter(['private']))
 
 logger = logging.getLogger(__name__)
-
-
-class FindPartyTypes(StrEnum):
-    SIMPLE = "искать партию",
-    WITH_COLOR = "искать партию с цветом",
-    WITH_FIO = "искать с фио",
-    CANCEL = "отмена",
-    STEP_BACK = "шаг назад"
-
-
-class FindPartyText(StrEnum):
-    CHOOSE_YEAR = "Выберете год или введите две цифры нужного"
-    SEND_YOUR_PHONE = "Отправьте свой номер телефона для регистрации"
-    ACTIONS_CANCELED = "Действия отменены"
-    PLEASE_ENTER_PART_NUMBER = "Введите номер партии для поиска"
-    ADDITION_INFORMATION = ("Если нужна дополнительная информация о партии, "
-                            "выберете соответствующую кнопку "
-                            "(запрос займет немного больше времени)?")
-    LOOKING_PARTY = "Поиск партии..."
 
 
 @user_private_router.message(CommandStart())
