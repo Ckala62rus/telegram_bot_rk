@@ -47,13 +47,51 @@ async def get_user_by_phone_number(session: AsyncSession, phone: str):
     return result.scalar()
 
 
+async def get_user_by_id(session: AsyncSession, id: int):
+    query = select(User).where(User.id == id)
+    result = await session.execute(query)
+    return result.scalar()
+
+
 async def set_admin_for_user(
-        session: AsyncSession,
-        phone: str,
-        set_admin: bool
+    session: AsyncSession,
+    id: int,
 ):
-    query = update(User).where(User.phone_number == phone).values(
-        is_admin=set_admin,
+    query = update(User).where(User.id == id).values(
+        is_admin=True,
+    )
+    await session.execute(query)
+    await session.commit()
+
+
+async def unset_admin_for_user(
+    session: AsyncSession,
+    id: int,
+):
+    query = update(User).where(User.id == id).values(
+        is_admin=False,
+    )
+    await session.execute(query)
+    await session.commit()
+
+
+async def ban_user(
+    session: AsyncSession,
+    id: int,
+):
+    query = update(User).where(User.id == id).values(
+        is_ban=True,
+    )
+    await session.execute(query)
+    await session.commit()
+
+
+async def unban_user(
+    session: AsyncSession,
+    id: int,
+):
+    query = update(User).where(User.id == id).values(
+        is_ban=False,
     )
     await session.execute(query)
     await session.commit()
