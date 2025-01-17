@@ -36,7 +36,7 @@ bot.my_admins_list = []
 dp = Dispatcher()
 
 logger.debug('init routers')
-dp.include_router(user_group_router)
+# dp.include_router(user_group_router)
 dp.include_router(user_private_router)
 dp.include_router(admin_router)
 logger.debug('success init routers')
