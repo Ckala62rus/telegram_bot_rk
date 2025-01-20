@@ -2,7 +2,8 @@ from enum import StrEnum
 
 
 class FindPartyTypes(StrEnum):
-    SIMPLE = "искать партию",
+    LOOKING_FOR = "искать партию"
+    SIMPLE = "простой поиск",
     WITH_COLOR = "искать партию с цветом",
     WITH_FIO = "искать с фио",
     CANCEL = "отмена",
@@ -18,3 +19,4 @@ class FindPartyText(StrEnum):
                             "выберете соответствующую кнопку "
                             "(запрос займет немного больше времени)?")
     LOOKING_PARTY = "Поиск партии..."
+    SUCCESS_PHONE_ADD = "Телефон успешно сохранен"
