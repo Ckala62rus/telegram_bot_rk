@@ -2,7 +2,8 @@ from aiogram import types, Bot
 from aiogram.filters import Filter
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.orm_query_user import get_admins_user
+from database.models.models import User
+from database.orm_query_user import get_admins_user, get_user_by_telegram_id
 
 
 # filter for check private of public chat
@@ -59,3 +60,25 @@ class InlineButtonExpired(Filter):
 
     async def __call__(self, message: types.CallbackQuery, bot: Bot) -> bool:
         return True
+
+
+class IsStuff(Filter):
+    def __init__(self) -> None:
+        pass
+
+    async def __call__(
+        self,
+        message: types.Message,
+        bot: Bot,
+        db_session: AsyncSession
+    ):
+        user: User | None = await get_user_by_telegram_id(
+            db_session,
+            message.from_user.id
+        )
+
+        if user is not None:
+            if user.is_staff:
+                return True
+
+        return False
