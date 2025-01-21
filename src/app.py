@@ -10,6 +10,7 @@ from config.configuration import settings
 from database.db import session_factory
 from common.bot_cmds_list import private
 from database.session_db_manager import db_session
+from handlers.new_user_handler import new_user_router
 from handlers.user_private import user_private_router
 from handlers.user_proup import user_group_router
 from handlers.admin_private import admin_router
@@ -37,6 +38,7 @@ dp = Dispatcher()
 
 logger.debug('init routers')
 # dp.include_router(user_group_router)
+dp.include_router(new_user_router)
 dp.include_router(user_private_router)
 dp.include_router(admin_router)
 logger.debug('success init routers')

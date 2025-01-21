@@ -14,66 +14,15 @@ from bot_enums.admin_enums import AdminEnums
 from bot_enums.user_enums import FindPartyText, FindPartyTypes
 from config.configuration import settings
 from database.models.models import User
-from database.orm_query_user import get_user_by_telegram_id, add_user, \
-    update_phone_user
-from filters.chat_types import ChatTypeFilter
+from database.orm_query_user import get_user_by_telegram_id, add_user
+from filters.chat_types import ChatTypeFilter, IsStuff
 from kbds import reply
 from kbds.reply import get_keyboard
 
 user_private_router = Router()
-user_private_router.message.filter(ChatTypeFilter(['private']))
+user_private_router.message.filter(ChatTypeFilter(['private']), IsStuff())
 
 logger = logging.getLogger(__name__)
-
-
-@user_private_router.message(CommandStart())
-async def start_command(message: types.Message, db_session: AsyncSession):
-    user: User = await get_user_by_telegram_id(db_session, message.from_user.id)
-
-    if user != "" and len(user.phone_number) > 0:
-        await message.answer(text="Вы уже есть в системе")
-        return
-
-    if user is None:
-        await add_user(db_session, {
-            "username": message.from_user.username,
-            "telegram_id": message.from_user.id,
-        })
-
-    await message.answer(
-        text="Для того, что бы пользоваться ботом, "
-             "вам необходимо поделиться номером телефона и "
-             "сообщить администратору, для добавления прав",
-        reply_markup=reply.phone_kb
-    )
-
-
-@user_private_router.message(Command('phone'))
-async def phone_command(message: types.Message):
-    await message.answer(
-        text=str(FindPartyText.SEND_YOUR_PHONE),
-        reply_markup=reply.phone_kb
-    )
-
-
-@user_private_router.message(F.contact)
-async def contact_command(message: types.Message, db_session: AsyncSession):
-    await update_phone_user(
-        db_session,
-        message.from_user.id,
-        message.contact.phone_number
-    )
-
-    await message.answer(
-        text=f"Осталось добавить права",
-        reply_markup=types.ReplyKeyboardRemove()
-    )
-
-
-@user_private_router.message(F.location)
-async def location_command(message: types.Message):
-    await message.answer(text="Ваша локация")
-    await message.answer(str(message.location))
 
 
 @user_private_router.message(Command('about_me'))
@@ -85,10 +34,12 @@ async def about_me_command(message: types.Message, db_session: AsyncSession):
         Ник: {username}
         Телефонный номер: {phone}
         Телеграм id: {telegram_id}
+        Уникальный номер id: {id}
     """.format(
         username=user.username,
         phone="Номер не указан" if user.phone_number is None else user.phone_number,
         telegram_id=user.telegram_id,
+        id=user.id,
     )
 
     await message.answer(
@@ -156,8 +107,9 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
 
 
 @user_private_router.message(StateFilter(None), Command('looking_for'))
-@user_private_router.message(StateFilter('*'), F.text.casefold() == str(FindPartyTypes.SIMPLE))
+@user_private_router.message(StateFilter(None), F.text.casefold() == str(FindPartyTypes.LOOKING_FOR))
 async def set_part_number(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
     await message.answer(
         text=str(FindPartyText.PLEASE_ENTER_PART_NUMBER),
         reply_markup=get_keyboard(str(FindPartyTypes.CANCEL))
@@ -167,6 +119,7 @@ async def set_part_number(message: types.Message, state: FSMContext):
 
 @user_private_router.message(LookingForParty.part_number, F.text)
 async def set_year_for_find_party(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
     await state.update_data(part_number=message.text)
 
     current_date = datetime.now()
@@ -188,6 +141,7 @@ async def set_year_for_find_party(message: types.Message, state: FSMContext):
 
 @user_private_router.message(LookingForParty.year, F.text)
 async def send_request_find_party(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
     await state.update_data(year=message.text)
     await message.answer(
         text=str(FindPartyText.ADDITION_INFORMATION),
@@ -204,6 +158,7 @@ async def send_request_find_party(message: types.Message, state: FSMContext):
 
 @user_private_router.message(LookingForParty.more_information, F.text.casefold() == str(FindPartyTypes.SIMPLE))
 async def cancel_handler_find_party(message: types.Message, state: FSMContext) -> None:
+    current_state = await state.get_state()
     current_state: dict | LookingForParty = await state.get_data()
     code = f"{current_state["year"]}%{current_state["part_number"]}"
     await find_party(message, state, code)
@@ -211,6 +166,7 @@ async def cancel_handler_find_party(message: types.Message, state: FSMContext) -
 
 @user_private_router.message(LookingForParty.more_information, F.text.casefold() == str(FindPartyTypes.WITH_COLOR))
 async def find_party_with_color(message: types.Message, state: FSMContext) -> None:
+    current_state = await state.get_state()
     current_state: dict | LookingForParty = await state.get_data()
     code = f"{current_state["year"]}%{current_state["part_number"]}*"
     await find_party(message, state, code)
@@ -218,6 +174,7 @@ async def find_party_with_color(message: types.Message, state: FSMContext) -> No
 
 @user_private_router.message(LookingForParty.more_information, F.text.casefold() == str(FindPartyTypes.WITH_FIO))
 async def find_party_with_fio(message: types.Message, state: FSMContext) -> None:
+    current_state = await state.get_state()
     current_state: dict | LookingForParty = await state.get_data()
     code = f"{current_state["year"]}%{current_state["part_number"]}@"
     await find_party(message, state, code)
@@ -245,8 +202,20 @@ async def find_party(message: types.Message, state: FSMContext, code: str) -> No
 
 
 @user_private_router.message(Command("menu"))
-async def admin_panel(message: types.Message):
-    await message.answer("Меню", reply_markup=get_keyboard(*[
-        str(AdminEnums.ADMIN_MENU),
-        str(FindPartyTypes.SIMPLE)
-    ]))
+async def admin_panel(
+    message: types.Message,
+    db_session: AsyncSession
+):
+    telegram_user_id = message.from_user.id
+    buttons = [str(FindPartyTypes.LOOKING_FOR)]
+    user: User = await get_user_by_telegram_id(db_session, telegram_user_id)
+
+    if user.is_admin:
+        buttons.append(str(AdminEnums.ADMIN_MENU))
+
+    await message.answer("Меню", reply_markup=get_keyboard(*buttons))
+
+
+# @user_private_router.message(F.text)
+# async def start_command(message: types.Message):
+#     await message.answer(text="Неизвестная команда")
